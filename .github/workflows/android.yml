@@ -1,0 +1,33 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK and CMake
+        run: sdkmanager "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: Build fwr debug APK
+        working-directory: android/launcher
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleFwrDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: re3-fwr-debug-apk
+          path: android/launcher/app/build/outputs/apk/fwr/debug/*.apk
