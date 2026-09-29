@@ -101,6 +101,8 @@ public class TouchControlsView extends View {
         // like a normal analog stick (proportional, clamped, held = keeps
         // turning), just anchored wherever the drag started.
         boolean isLookPad = false;
+        // Official-style: the look pad's resting circle isn't drawn, only while a finger is dragging it.
+        boolean hideResting = false;
         RectF grabZone = new RectF(); // where a finger may land to grab this pad
         PointF dragOrigin = new PointF(); // this drag's floating center, set on touch-down
 
@@ -231,7 +233,8 @@ public class TouchControlsView extends View {
     // just points at whichever of these applies for the current context.
     // No phone icon: GTA III has no cellphone mechanic (that's a VC thing).
     private final Bitmap icRun, icJump, icShoot, icEnterVehicle, icExitVehicle,
-            icAim, icCamera, icAccelerate, icBrake, icHandbrake, icRadio, icHorn;
+            icAim, icCamera, icAccelerate, icBrake, icHandbrake, icRadio, icHorn,
+            icSteerLeft, icSteerRight, icSkip;
 
     private Bitmap loadIcon(Context context, int resId) {
         return BitmapFactory.decodeResource(context.getResources(), resId);
@@ -253,6 +256,9 @@ public class TouchControlsView extends View {
         icHandbrake = loadIcon(context, R.drawable.ic_handbrake);
         icRadio = loadIcon(context, R.drawable.ic_radio);
         icHorn = loadIcon(context, R.drawable.ic_horn);
+        icSteerLeft = loadIcon(context, R.drawable.ic_steer_left);
+        icSteerRight = loadIcon(context, R.drawable.ic_steer_right);
+        icSkip = loadIcon(context, R.drawable.ic_skip);
 
         layoutPrefs = context.getSharedPreferences("touch_controls_layout", Context.MODE_PRIVATE);
 
@@ -331,14 +337,21 @@ public class TouchControlsView extends View {
         float margin = Math.min(width, height) * 0.06f;
         float baseRadius = Math.min(width, height) * 0.15f;
 
-        leftStick.baseRadius = baseRadius;
-        leftStick.knobRadius = baseRadius * 0.45f;
-        leftStick.center.set(areaLeft + margin + baseRadius, areaBottom - margin - baseRadius);
+        // Official-GTA3-mobile proportions: everything is sized/placed in
+        // units of the usable height (hu), anchored to the screen edges, so
+        // the layout looks the same on any aspect ratio.
+        float hu = areaBottom - areaTop;
+        float stickR = hu * 0.125f;
+
+        leftStick.baseRadius = stickR;
+        leftStick.knobRadius = stickR * 0.4f;
+        leftStick.center.set(areaLeft + hu * 0.19f, areaTop + hu * 0.815f);
         applyStickCustomization(leftStick);
 
-        rightStick.baseRadius = baseRadius;
-        rightStick.knobRadius = baseRadius * 0.45f;
-        rightStick.center.set(areaRight - margin - baseRadius, areaBottom - margin - baseRadius);
+        rightStick.baseRadius = stickR;
+        rightStick.knobRadius = stickR * 0.4f;
+        rightStick.center.set(areaRight - hu * 0.19f, areaTop + hu * 0.815f);
+        rightStick.hideResting = false;
         applyStickCustomization(rightStick);
         // Grab zone for the look pad: the whole right half of the screen, not
         // just the small visual circle -- a finger can land anywhere there to
@@ -397,10 +410,11 @@ public class TouchControlsView extends View {
         leftStick.visible = false;
         rightStick.visible = false;
 
-        float w = width * 0.2f;
-        float h = height * 0.09f;
-        placeRect(BTN_CROSS, areaRight - w - width * 0.04f, areaBottom - h - height * 0.05f, areaRight - width * 0.04f, areaBottom - height * 0.05f);
+        // Official layout: one small round "skip" arrow, bottom-right corner.
+        float hu = areaBottom - areaTop;
+        placeCircle(BTN_CROSS, areaRight - hu * 0.09f, areaTop + hu * 0.925f, hu * 0.06f);
         b(BTN_CROSS).label = "SALTAR";
+        b(BTN_CROSS).icon = icSkip;
 
         placeEnterButton(width * 0.18f, height * 0.07f);
     }
@@ -440,60 +454,51 @@ public class TouchControlsView extends View {
 
     private void layoutOnFoot(float margin, float baseRadius) {
         leftStick.visible = true;
-        rightStick.visible = true;
+        rightStick.visible = true;      // camera: drag anywhere on the right half
+        rightStick.hideResting = true;  // ...and, like the original, no visible circle
 
+        float hu = areaBottom - areaTop;
+        float R = areaRight;
+        float T = areaTop;
+        float L = areaLeft;
+
+        // Attack, right side. Sprint + jump along the bottom right.
+        placeCircle(BTN_CIRCLE, R - hu * 0.12f, T + hu * 0.60f, hu * 0.075f);
+        placeCircle(BTN_CROSS, R - hu * 0.324f, T + hu * 0.79f, hu * 0.09f);
+        placeCircle(BTN_SQUARE, R - hu * 0.116f, T + hu * 0.79f, hu * 0.09f);
+        b(BTN_CIRCLE).label = "DISPARAR";
+        b(BTN_CIRCLE).icon = icShoot;
         b(BTN_CROSS).label = "CORRER";
         b(BTN_CROSS).icon = icRun;
         b(BTN_SQUARE).label = "SALTAR";
         b(BTN_SQUARE).icon = icJump;
-        b(BTN_CIRCLE).label = "DISPARAR";
-        b(BTN_CIRCLE).icon = icShoot;
+
+        // Enter vehicle: top, just left of the HUD (clock/money/weapon).
+        placeCircle(BTN_TRIANGLE, R - hu * 0.60f, T + hu * 0.075f, hu * 0.055f);
         b(BTN_TRIANGLE).label = "SUBIR";
         b(BTN_TRIANGLE).icon = icEnterVehicle;
 
-        // Face buttons, diamond above the right stick.
-        float faceCx = rightStick.center.x;
-        float faceCy = rightStick.center.y - baseRadius * 2.0f;
-        float btnR = baseRadius * 0.34f;
-        float spread = btnR * 1.7f;
-        placeCircle(BTN_TRIANGLE, faceCx, faceCy - spread, btnR);
-        placeCircle(BTN_CROSS, faceCx, faceCy + spread, btnR);
-        placeCircle(BTN_SQUARE, faceCx - spread, faceCy, btnR);
-        placeCircle(BTN_CIRCLE, faceCx + spread, faceCy, btnR);
-
-        // L1/L2/R1/R2, in a row above the left stick. Centers need to be at
-        // least 2*shR apart or the circles themselves overlap -- give them a
-        // clear gap on top of that.
-        float shR = baseRadius * 0.3f;
-        float shGap = shR * 2.5f;
-        float rowY = leftStick.center.y - baseRadius * 2.05f;
-        placeCircle(BTN_L2, leftStick.center.x - shGap * 1.5f, rowY, shR);
-        placeCircle(BTN_L1, leftStick.center.x - shGap * 0.5f, rowY, shR);
-        placeCircle(BTN_R1, leftStick.center.x + shGap * 0.5f, rowY, shR);
-        placeCircle(BTN_R2, leftStick.center.x + shGap * 1.5f, rowY, shR);
-
-        b(BTN_L1).label = "CAM"; // PED_CENTER_CAMERA_BEHIND_PLAYER, not a phone -- III has none
+        // Center camera behind the player: under the radar, top-left.
+        placeCircle(BTN_L1, L + hu * 0.09f, T + hu * 0.30f, hu * 0.06f);
+        b(BTN_L1).label = "CAM";
         b(BTN_L1).icon = icCamera;
+
+        // Not in the official layout's main cluster, but needed to play:
+        // aim/lock-on, previous/next weapon, look behind. Small, in a row
+        // above the attack button.
+        float smallR = hu * 0.045f;
+        placeCircle(BTN_R1, R - hu * 0.12f, T + hu * 0.41f, hu * 0.055f);
         b(BTN_R1).label = "APUNTAR";
         b(BTN_R1).icon = icAim;
-
-        // Look behind (R3 -- CPad::GetLookBehindForPed() reads RightShock,
-        // the right stick click). BTN_R3 was never placed in ANY context at
-        // all -- not just missing here, genuinely unreachable by touch.
-        // Mods that read a raw pad button via IS_BUTTON_PRESSED/
-        // GET_PAD_STATE (button id 19 = RightShock, see
-        // CRunningScript::GetPadState) for their own custom prompts --
-        // e.g. a yes/no choice -- would be just as stuck.
-        placeCircle(BTN_R3, faceCx, faceCy - spread - btnR * 1.9f, shR);
+        placeCircle(BTN_R2, R - hu * 0.27f, T + hu * 0.43f, smallR);
+        placeCircle(BTN_L2, R - hu * 0.37f, T + hu * 0.43f, smallR);
+        placeCircle(BTN_R3, R - hu * 0.47f, T + hu * 0.43f, smallR);
+        b(BTN_R2).label = "ARMA >";
+        b(BTN_L2).label = "< ARMA";
         b(BTN_R3).label = "MIRAR\nATRÁS";
 
-        // Select (camera view), top area but clear of the radar (top-left,
-        // see RADAR_LEFT/TOP/WIDTH/HEIGHT in Radar.h -- roughly the left 21%
-        // of the screen). Round, like every other icon button now, instead
-        // of a wide rect the round artwork would get squashed into.
-        float camR = baseRadius * 0.32f;
-        float camCx = Math.max(areaLeft + margin + camR, areaLeft + (areaRight - areaLeft) * 0.24f);
-        placeCircle(BTN_SELECT, camCx, areaTop + margin + camR, camR);
+        // Change camera view (kept reachable, small, next to the weapon row).
+        placeCircle(BTN_SELECT, L + hu * 0.09f, T + hu * 0.44f, hu * 0.045f);
         b(BTN_SELECT).label = "VISTA";
         b(BTN_SELECT).icon = icCamera;
 
@@ -505,74 +510,64 @@ public class TouchControlsView extends View {
     }
 
     private void layoutVehicle(float margin, float baseRadius) {
-        leftStick.visible = true;  // steering
-        rightStick.visible = true; // camera
+        leftStick.visible = false;      // steering is two arrow buttons, like the original
+        rightStick.visible = true;      // camera drag zone
+        rightStick.hideResting = true;
 
-        // Big gas/brake pedals, stacked to the right of the right stick area,
-        // large enough to hit reliably without looking.
-        float pedalW = baseRadius * 0.9f;
-        float pedalH = baseRadius * 1.0f;
-        float px = rightStick.center.x - baseRadius * 2.1f;
-        placeRect(BTN_CROSS, px - pedalW / 2, areaBottom - margin - pedalH, px + pedalW / 2, areaBottom - margin);
-        placeRect(BTN_SQUARE, px - pedalW / 2, areaBottom - margin - pedalH * 2.1f, px + pedalW / 2, areaBottom - margin - pedalH * 1.1f);
+        float hu = areaBottom - areaTop;
+        float R = areaRight;
+        float T = areaTop;
+        float L = areaLeft;
+
+        // Steering arrows, bottom-left. BTN_DPAD_LEFT/RIGHT are reused as
+        // the two steering buttons: setPressed() turns them into left-stick
+        // X = -1 / +1 while in a vehicle (see there).
+        placeCircle(BTN_DPAD_LEFT, L + hu * 0.096f + hu * 0.06f, T + hu * 0.71f, hu * 0.085f);
+        placeCircle(BTN_DPAD_RIGHT, L + hu * 0.27f + hu * 0.06f, T + hu * 0.72f, hu * 0.085f);
+        b(BTN_DPAD_LEFT).label = "<";
+        b(BTN_DPAD_LEFT).icon = icSteerLeft;
+        b(BTN_DPAD_RIGHT).label = ">";
+        b(BTN_DPAD_RIGHT).icon = icSteerRight;
+
+        // Pedals, bottom-right: gas on the far right, brake to its left.
+        placeCircle(BTN_CROSS, R - hu * 0.104f, T + hu * 0.71f, hu * 0.085f);
+        placeCircle(BTN_SQUARE, R - hu * 0.288f, T + hu * 0.72f, hu * 0.085f);
         b(BTN_CROSS).label = "GAS";
         b(BTN_CROSS).icon = icAccelerate;
         b(BTN_SQUARE).label = "FRENO";
         b(BTN_SQUARE).icon = icBrake;
 
-        float btnR = baseRadius * 0.32f;
-        float faceCx = rightStick.center.x;
-        float faceCy = rightStick.center.y - baseRadius * 2.1f;
-        placeCircle(BTN_TRIANGLE, faceCx, faceCy - btnR * 1.6f, btnR);
-        placeCircle(BTN_CIRCLE, faceCx, faceCy + btnR * 1.6f, btnR);
-        b(BTN_TRIANGLE).label = "SALIR";
-        b(BTN_TRIANGLE).icon = icExitVehicle;
-        b(BTN_CIRCLE).label = "DISPARAR";
-        b(BTN_CIRCLE).icon = icShoot;
-
-        float shR = baseRadius * 0.3f;
-        float rowY = leftStick.center.y - baseRadius * 1.9f;
-        placeCircle(BTN_L1, leftStick.center.x - shR * 1.2f, rowY, shR);
-        placeCircle(BTN_R1, leftStick.center.x + shR * 1.2f, rowY, shR);
-        b(BTN_L1).label = "RADIO";
-        b(BTN_L1).icon = icRadio;
+        // Handbrake above gas, shoot above brake, exit car above handbrake.
+        placeCircle(BTN_R1, R - hu * 0.104f, T + hu * 0.55f, hu * 0.085f);
+        placeCircle(BTN_CIRCLE, R - hu * 0.288f, T + hu * 0.55f, hu * 0.085f);
+        placeCircle(BTN_TRIANGLE, R - hu * 0.104f, T + hu * 0.41f, hu * 0.075f);
         b(BTN_R1).label = "FRENO\nMANO";
         b(BTN_R1).icon = icHandbrake;
+        b(BTN_CIRCLE).label = "DISPARAR";
+        b(BTN_CIRCLE).icon = icShoot;
+        b(BTN_TRIANGLE).label = "SALIR";
+        b(BTN_TRIANGLE).icon = icExitVehicle;
 
-        // Drive-by (L2/R2 -- CPad::GetLookLeft()/GetLookRight(), read
-        // straight off LeftShoulder2/RightShoulder2). These were never
-        // placed in the vehicle context at all, so there was no way to
-        // shoot out either side while driving. Flanking L1/R1, same
-        // shGap-style spacing layoutOnFoot() uses for its L1/L2/R1/R2 row.
-        float shGap = shR * 2.5f;
-        placeCircle(BTN_L2, leftStick.center.x - shGap * 1.5f, rowY, shR);
-        placeCircle(BTN_R2, leftStick.center.x + shGap * 1.5f, rowY, shR);
-        b(BTN_L2).label = "DISPARAR\nIZQ.";
-        b(BTN_R2).label = "DISPARAR\nDER.";
-
-        placeCircle(BTN_L3, leftStick.center.x, rowY - shR * 2.2f, shR);
+        // Horn (small) and drive-by / side-mission buttons in a row above.
+        float smallR = hu * 0.045f;
+        placeCircle(BTN_L3, R - hu * 0.237f, T + hu * 0.39f, hu * 0.04f);
+        placeCircle(BTN_R2, R - hu * 0.34f, T + hu * 0.39f, smallR);
+        placeCircle(BTN_L2, R - hu * 0.44f, T + hu * 0.39f, smallR);
+        placeCircle(BTN_R3, R - hu * 0.54f, T + hu * 0.39f, smallR);
         b(BTN_L3).label = "BOCINA";
         b(BTN_L3).icon = icHorn;
-
-        // Sub-missions (R3 -- also CPad::GetLookBehindForPed()'s button on
-        // foot, but in a vehicle this same physical button is what
-        // CONTROLLER_BUTTONS binds to TOGGLE_SUBMISSIONS: entering a
-        // Police/Ambulance/Firetruck/Taxi and pressing R3 starts the
-        // Vigilante/Paramedic/Firefighter/Taxi Driver side missions
-        // (needed for 100%). Was only ever placed on foot, never here, so
-        // there was no way to start any of them by touch.
-        placeCircle(BTN_R3, faceCx, faceCy - btnR * 1.6f - shR * 2.2f, shR);
+        b(BTN_R2).label = "DISPARAR\nDER.";
+        b(BTN_L2).label = "DISPARAR\nIZQ.";
         b(BTN_R3).label = "MISIÓN\nEXTRA";
 
-        float camR = baseRadius * 0.32f;
-        float camCx = Math.max(areaLeft + margin + camR, areaLeft + (areaRight - areaLeft) * 0.24f);
-        placeCircle(BTN_SELECT, camCx, areaTop + margin + camR, camR);
+        // Change camera view: top, left of the HUD. Radio: under the radar.
+        placeCircle(BTN_SELECT, R - hu * 0.60f, T + hu * 0.12f, hu * 0.05f);
         b(BTN_SELECT).label = "VISTA";
         b(BTN_SELECT).icon = icCamera;
+        placeCircle(BTN_L1, L + hu * 0.09f, T + hu * 0.30f, hu * 0.06f);
+        b(BTN_L1).label = "RADIO";
+        b(BTN_L1).icon = icRadio;
 
-        // Start (pause) -- was never placed in this context at all, so there
-        // was simply no way to pause while driving. Same top-right spot as
-        // on foot.
         placeRect(BTN_START, areaRight - margin - baseRadius * 0.7f, areaTop + margin, areaRight - margin, areaTop + margin + baseRadius * 0.35f);
         b(BTN_START).label = "≡";
 
@@ -688,7 +683,8 @@ public class TouchControlsView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         if (leftStick.visible) drawStick(canvas, leftStick);
-        if (rightStick.visible) drawStick(canvas, rightStick);
+        if (rightStick.visible && (!rightStick.hideResting || rightStick.pointerId != -1 || editMode))
+            drawStick(canvas, rightStick);
 
         for (Button btn : buttons) {
             if (!btn.visible) continue;
@@ -1036,12 +1032,16 @@ public class TouchControlsView extends View {
             rightStick.knob.set(rightStick.center.x, rightStick.center.y);
             nativeSetStick(STICK_RIGHT, 0f, 0f);
         }
+        boolean steerWasDown = b(BTN_DPAD_LEFT).pressed || b(BTN_DPAD_RIGHT).pressed;
         for (Button btn : buttons) {
             if (btn.pointerId != -1 || btn.pressed) {
                 btn.pointerId = -1;
                 setPressed(btn, false);
             }
         }
+        // The context may already have changed, so setPressed() can't be
+        // relied on to clear steering -- do it explicitly.
+        if (steerWasDown) nativeSetStick(STICK_LEFT, 0f, 0f);
         if (menuMousePointerId != -1) {
             menuMousePointerId = -1;
             nativeSetMenuMouse(0f, 0f, false);
@@ -1050,6 +1050,14 @@ public class TouchControlsView extends View {
 
     private void setPressed(Button btn, boolean pressed) {
         btn.pressed = pressed;
+        // In a vehicle the two arrow buttons steer (left stick X = -1/+1)
+        // instead of acting as menu D-Pad presses.
+        if (currentContext == CONTEXT_VEHICLE
+                && (btn.id == BTN_DPAD_LEFT || btn.id == BTN_DPAD_RIGHT)) {
+            float x = (b(BTN_DPAD_RIGHT).pressed ? 1f : 0f) - (b(BTN_DPAD_LEFT).pressed ? 1f : 0f);
+            nativeSetStick(STICK_LEFT, x, 0f);
+            return;
+        }
         nativeSetButton(btn.id, pressed);
     }
 

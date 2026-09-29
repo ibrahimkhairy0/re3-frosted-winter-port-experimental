@@ -101,6 +101,9 @@ public class GameActivity extends SDLActivity {
         // native methods resolve fine without a separate System.loadLibrary.
         mLayout.addView(new TouchControlsView(this),
                 new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // Credit shown every time the game starts.
+        Toast.makeText(this, "Modded by Ibrahim", Toast.LENGTH_LONG).show();
     }
 
     @Override
